@@ -168,12 +168,12 @@ for epoch in range(TRAINING_EPOCH):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss
     }, "checkpoint.pth")
-    save_probability_maps_from_output(
-        target, 
-        num_classes=NUM_CLASSES, 
-        save_dir="prob_maps", 
-        prefix=f"epoch_{epoch}"
-    )
+save_probability_maps_from_output(
+    target, 
+    num_classes=NUM_CLASSES, 
+    save_dir="prob_maps", 
+    prefix=f"epoch_{TRAINING_EPOCH}"
+)
 
 
 print("\n===== Average Accuracy Every 10 Epochs =====")
