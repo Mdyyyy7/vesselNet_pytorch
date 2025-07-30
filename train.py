@@ -13,9 +13,9 @@ from transforms import (train_transform, train_transform_cuda,
                         val_transform, val_transform_cuda)
 import time
 from evaluation import calculate_accuracy,calculate_dice,calculate_recall
-from losses import weighted_categorical_crossentropy_with_fpr
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+from torch.nn import BCEWithLogitsLoss
 
 
 
@@ -60,12 +60,14 @@ train_dataloader, val_dataloader, _ = get_Dataloaders_new(train_transforms = tra
 weights = torch.Tensor(BCE_WEIGHTS)
 weights= weights.to("cuda")
 
-criterion = CrossEntropyLoss(weight=weights,ignore_index=-999)
-print("Use CrossEntropyLoss")
-# criterion = weighted_categorical_crossentropy_with_fpr(
-#     dim=1, from_logits=True, classes=NUM_CLASSES, threshold=0.5
-# )
-# print("Use self loss")
+# criterion = CrossEntropyLoss(weight=weights,ignore_index=-999)
+# print("Use CrossEntropyLoss")
+pos_w = torch.tensor(BCE_WEIGHTS).view(1, -1, 1, 1, 1).to("cuda")
+criterion = BCEWithLogitsLoss(pos_weight=pos_w)
+print("Use CEWithLogitsLoss")
+
+
+
 optimizer = Adam(params=model.parameters(),lr=0.0001)
 
 min_valid_loss = math.inf
@@ -83,15 +85,14 @@ for epoch in range(TRAINING_EPOCH):
 
         ground_truth = ground_truth.squeeze(1)
         ground_truth = ground_truth.long()
-
-        ground_truth[ground_truth < 0] = -999
+        # ground_truth[ground_truth < 0] = -999
 
         optimizer.zero_grad()
         target = model(image)
 
-        # y_true = F.one_hot(ground_truth, num_classes=NUM_CLASSES).permute(0, 4, 1, 2, 3).float()
-        # loss = criterion(y_true, target)
-        loss = criterion(target, ground_truth)
+        y_true = F.one_hot(ground_truth, num_classes=NUM_CLASSES).permute(0, 4, 1, 2, 3).float()
+        loss = criterion(target, y_true)
+        # loss = criterion(target, ground_truth)
         # print(f'Train loss:{loss}')
         loss.backward()
         optimizer.step()
@@ -103,25 +104,27 @@ for epoch in range(TRAINING_EPOCH):
     accuracy=0.0
     valid_loss = 0.0
     model.eval()
-    for data in val_dataloader:
-      image, ground_truth = data['image'], data['label']
-      
+    with torch.no_grad():
+      for data in val_dataloader:
+        image, ground_truth = data['image'], data['label']
+        
 
-      ground_truth = ground_truth.squeeze(1)
-      ground_truth = ground_truth.long()
-      target = model(image)
-      # y_true = F.one_hot(ground_truth, num_classes=NUM_CLASSES).permute(0, 4, 1, 2, 3).float()
-      # loss = criterion(y_true, target)
-      loss = criterion(target,ground_truth)
-      # print(f'Valid loss:{loss}')
-      valid_loss += loss.item()
-      accuracy += calculate_accuracy(target, ground_truth)
-      dice_scores = calculate_dice(target, ground_truth, NUM_CLASSES)
-      for i, dice in enumerate(dice_scores):
-          dice_sums[i] += dice
-      recalls = calculate_recall(target, ground_truth, NUM_CLASSES)
-      for i, r in enumerate(recalls):
-          recall_sums[i] += r
+        ground_truth = ground_truth.squeeze(1)
+        ground_truth = ground_truth.long()
+
+        target = model(image)
+        y_true = F.one_hot(ground_truth, num_classes=NUM_CLASSES).permute(0, 4, 1, 2, 3).float()
+        loss = criterion(target, y_true)
+        # loss = criterion(target,ground_truth)
+        # print(f'Valid loss:{loss}')
+        valid_loss += loss.item()
+        accuracy += calculate_accuracy(target, ground_truth)
+        dice_scores = calculate_dice(target, ground_truth, NUM_CLASSES)
+        for i, dice in enumerate(dice_scores):
+            dice_sums[i] += dice
+        recalls = calculate_recall(target, ground_truth, NUM_CLASSES)
+        for i, r in enumerate(recalls):
+            recall_sums[i] += r
 
 
     # writer.add_scalar("Loss/Train", train_loss / len(train_dataloader), epoch)
