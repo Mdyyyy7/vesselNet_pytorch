@@ -73,6 +73,8 @@ optimizer = Adam(params=model.parameters(),lr=0.0001)
 min_valid_loss = math.inf
 epoch_times = []
 accuracy_list = []
+train_loss_list = []
+valid_loss_list = []
 
 for epoch in range(TRAINING_EPOCH):
 
@@ -133,6 +135,8 @@ for epoch in range(TRAINING_EPOCH):
     epoch_end = time.time()
     avg_train=train_loss / len(train_dataloader)
     avg_valid=valid_loss / len(val_dataloader)
+    train_loss_list.append(avg_train)
+    valid_loss_list.append(avg_valid)
    
     avg_accuracy = accuracy / len(val_dataloader)
     accuracy_list.append(avg_accuracy)
@@ -171,6 +175,7 @@ for epoch in range(TRAINING_EPOCH):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss
     }, "checkpoint.pth")
+    
 save_probability_maps_from_output(
     target, 
     num_classes=NUM_CLASSES, 
@@ -193,6 +198,15 @@ for i in range(0, len(epoch_times), 10):
 
 total_avg = sum(epoch_times) / len(epoch_times)
 print(f"\nOverall average time for all {TRAINING_EPOCH} epochs: {total_avg:.2f} seconds")
-# writer.flush()
-# writer.close()
+
+plt.figure()
+plt.plot(range(1, TRAINING_EPOCH+1), train_loss_list, label='Train Loss')
+plt.plot(range(1, TRAINING_EPOCH+1), valid_loss_list, label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Loss vs Epoch')
+plt.legend()
+plt.grid(True)
+plt.savefig('loss_epoch.png')
+plt.show()
 
