@@ -1,7 +1,7 @@
 import monai
 import torch
 import torch.nn.functional as F
-from unet3d import UNet3D
+from unet import UNet3D
 from dataset_1 import get_Dataloaders_new
 from transforms import (train_transform, train_transform_cuda,
                         val_transform, val_transform_cuda)
