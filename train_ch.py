@@ -220,4 +220,3 @@ plt.legend()
 plt.grid(True)
 plt.savefig('loss_epoch_ch.png')
 plt.show()
-
