@@ -12,7 +12,7 @@ from unet import UNet3D
 from transforms import (train_transform, train_transform_cuda,
                         val_transform, val_transform_cuda)
 import time
-from evaluation import calculate_accuracy,calculate_dice,calculate_recall
+from evaluation import calculate_accuracy,calculate_dice,calculate_recall,per_class_accuracy
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from torch.nn import BCEWithLogitsLoss
@@ -43,7 +43,8 @@ if BACKGROUND_AS_CLASS:
   NUM_CLASSES += 1
 
 # writer = SummaryWriter("runs")
-model = UNet3D(in_channels=IN_CHANNELS , num_classes= NUM_CLASSES,cross_hair=True)
+model = UNet3D(in_channels=IN_CHANNELS , num_classes= NUM_CLASSES, cross_hair=True)
+print('Train model with cross_hair')
 train_transforms = train_transform
 val_transforms = val_transform
 
@@ -64,7 +65,7 @@ weights= weights.to("cuda")
 # print("Use CrossEntropyLoss")
 pos_w = torch.tensor(BCE_WEIGHTS).view(1, -1, 1, 1, 1).to("cuda")
 criterion = BCEWithLogitsLoss(pos_weight=pos_w)
-print("Use CEWithLogitsLoss")
+print("Use BCEWithLogitsLoss")
 
 
 
@@ -85,8 +86,7 @@ for epoch in range(TRAINING_EPOCH):
         image, ground_truth = data['image'], data['label']
         
 
-        ground_truth = ground_truth.squeeze(1)
-        ground_truth = ground_truth.long()
+        ground_truth = ground_truth.squeeze(1).long()
         # ground_truth[ground_truth < 0] = -999
 
         optimizer.zero_grad()
@@ -103,6 +103,7 @@ for epoch in range(TRAINING_EPOCH):
 	
     dice_sums = [0.0] * NUM_CLASSES
     recall_sums = [0.0] * NUM_CLASSES
+    accuracy_sums = [0.0] * NUM_CLASSES
     accuracy=0.0
     valid_loss = 0.0
     model.eval()
@@ -127,6 +128,9 @@ for epoch in range(TRAINING_EPOCH):
         recalls = calculate_recall(target, ground_truth, NUM_CLASSES)
         for i, r in enumerate(recalls):
             recall_sums[i] += r
+        accuracy_scores = per_class_accuracy(target, ground_truth, NUM_CLASSES)
+        for i, r in enumerate(accuracy_scores):
+            accuracy_sums[i] += r
 
 
     # writer.add_scalar("Loss/Train", train_loss / len(train_dataloader), epoch)
@@ -156,6 +160,13 @@ for epoch in range(TRAINING_EPOCH):
     for i, r in enumerate(avg_recall_per_class):
       print(f"Recall Class {i}: {r:.4f}")
 
+    avg_accuracy_per_class = [
+      accuracy_sums[i] / len(val_dataloader)
+      for i in range(NUM_CLASSES)
+    ]
+    for i, r in enumerate(avg_accuracy_per_class):
+      print(f"Accuracy Class {i}: {r:.4f}")
+
 
 
     print(f'Epoch {epoch+1} \t\t Training Loss: {avg_train} \t\t Validation Loss: {avg_valid}')
@@ -174,12 +185,12 @@ for epoch in range(TRAINING_EPOCH):
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss
-    }, "checkpoint.pth")
+    }, "checkpoint_ch.pth")
     
 save_probability_maps_from_output(
     target, 
     num_classes=NUM_CLASSES, 
-    save_dir="prob_maps", 
+    save_dir="prob_maps_ch", 
     prefix=f"epoch_{TRAINING_EPOCH}"
 )
 
@@ -207,6 +218,6 @@ plt.ylabel('Loss')
 plt.title('Loss vs Epoch')
 plt.legend()
 plt.grid(True)
-plt.savefig('loss_epoch.png')
+plt.savefig('loss_epoch_ch.png')
 plt.show()
 
